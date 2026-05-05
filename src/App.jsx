@@ -42,6 +42,8 @@ export default function App() {
   const [students, setStudents] = useState([]);
   const [newName, setNewName] = useState('');
   const [openCard, setOpenCard] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editingName, setEditingName] = useState('');
   const [nav, setNav] = useState(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [toast, setToast] = useState('');
   const [report, setReport] = useState(false);
@@ -74,6 +76,15 @@ export default function App() {
     save(updated);
     setNewName('');
     showToast('Aluno adicionado!');
+  }
+
+  function renameStudent(id) {
+    const name = editingName.trim();
+    if (!name) return;
+    const updated = students.map(s => s.id === id ? { ...s, name } : s);
+    save(updated);
+    setEditingId(null);
+    showToast('Nome atualizado!');
   }
 
   function removeStudent(id) {
@@ -227,18 +238,36 @@ export default function App() {
               const tot = totalSessions(s);
               return (
                 <div key={s.id} style={styles.card}>
-                  <div style={styles.cardHead} onClick={() => setOpenCard(isOpen ? null : s.id)}>
-                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                  <div style={styles.cardHead} onClick={() => editingId !== s.id && setOpenCard(isOpen ? null : s.id)}>
+                    <div style={{ display:'flex', alignItems:'center', gap:12, flex:1, minWidth:0 }}>
                       <div style={styles.avatar}>{s.name.charAt(0).toUpperCase()}</div>
-                      <div>
-                        <div style={{ fontWeight:600, fontSize:'.95rem' }}>{s.name}</div>
-                        <div style={{ fontSize:'.72rem', color:'#666', marginTop:1 }}>{tot} aula{tot!==1?'s':''} no total</div>
+                      {editingId === s.id ? (
+                        <div onClick={e => e.stopPropagation()} style={{ display:'flex', gap:6, alignItems:'center', flex:1 }}>
+                          <input
+                            style={{ ...styles.input, padding:'6px 10px', fontSize:'.9rem', minHeight:'unset', flex:1 }}
+                            value={editingName}
+                            onChange={e => setEditingName(e.target.value)}
+                            onKeyDown={e => { if(e.key==='Enter') renameStudent(s.id); if(e.key==='Escape') setEditingId(null); }}
+                            autoFocus
+                          />
+                          <button style={{ ...styles.btn, padding:'6px 12px', minHeight:'unset' }} onClick={e => { e.stopPropagation(); renameStudent(s.id); }}>✓</button>
+                          <button style={{ ...styles.btnGhost, padding:'6px 10px', minHeight:'unset' }} onClick={e => { e.stopPropagation(); setEditingId(null); }}>✕</button>
+                        </div>
+                      ) : (
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontWeight:600, fontSize:'.95rem' }}>{s.name}</div>
+                          <div style={{ fontSize:'.72rem', color:'#666', marginTop:1 }}>{tot} aula{tot!==1?'s':''} no total</div>
+                        </div>
+                      )}
+                    </div>
+                    {editingId !== s.id && (
+                      <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                        <button style={{ background:'transparent', border:'1px solid #333', color:'#666', borderRadius:6, padding:'4px 8px', fontSize:'.8rem', cursor:'pointer' }}
+                          onClick={e => { e.stopPropagation(); setEditingId(s.id); setEditingName(s.name); }}>✏️</button>
+                        <span style={styles.badge}>{tot}</span>
+                        <span style={{ color:'#666', display:'inline-block', transform: isOpen?'rotate(180deg)':'none', transition:'transform .25s' }}>▾</span>
                       </div>
-                    </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={styles.badge}>{tot}</span>
-                      <span style={{ color:'#666', display:'inline-block', transform: isOpen?'rotate(180deg)':'none', transition:'transform .25s' }}>▾</span>
-                    </div>
+                    )}
                   </div>
                   {isOpen && <Calendar s={s} />}
                 </div>
@@ -353,7 +382,7 @@ export default function App() {
         <div id="ptc-print">
           {logo && <img src={logo} className="ptc-wm" alt="" />}
           <div className="ptc-hdr">
-            <h1>{printData.studentName ? printData.studentName.toUpperCase() : 'TODOS OS ALUNOS'}</h1>
+            <h1>{printData.studentName ? printData.studentName.toUpperCase() : 'GUILHERME ROMAN - TREINADOR'}</h1>
             <p>{MONTHS[printData.m].toUpperCase()} {printData.y} · RELATÓRIO DE AULAS · PT CONTROL</p>
           </div>
           <div className="ptc-body">
