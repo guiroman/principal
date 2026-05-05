@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 const DAYS = ['D','S','T','Q','Q','S','S'];
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -15,6 +17,7 @@ const styles = {
   btn: { background: '#c8f135', color: '#111', border: 'none', borderRadius: 7, padding: '10px 16px', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer', minHeight: 44, whiteSpace: 'nowrap' },
   btnSm: { background: 'transparent', border: '1px solid #ff4d4d', color: '#ff4d4d', borderRadius: 6, padding: '6px 12px', fontSize: '.75rem', cursor: 'pointer' },
   btnGhost: { background: 'transparent', border: '1px solid #2d2d2d', color: '#666', borderRadius: 7, padding: '8px 14px', fontSize: '.8rem', cursor: 'pointer' },
+  btnPdf: { background: '#1c1c1c', border: '1.5px solid #c8f135', color: '#c8f135', borderRadius: 7, padding: '10px 16px', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer', minHeight: 44, whiteSpace: 'nowrap' },
   card: { background: '#1c1c1c', border: '1px solid #2d2d2d', borderRadius: 12, marginBottom: 12, overflow: 'hidden' },
   cardHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', cursor: 'pointer' },
   avatar: { width: 38, height: 38, borderRadius: '50%', background: '#c8f135', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.1rem', color: '#111', flexShrink: 0 },
@@ -47,6 +50,7 @@ export default function App() {
   const [repMonth, setRepMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${n.getMonth()}`; });
   const [repStudent, setRepStudent] = useState('todos');
   const [repData, setRepData] = useState(null);
+  const [logo, setLogo] = useState(() => localStorage.getItem('ptcontrol_logo') || null);
 
   useEffect(() => {
     try {
@@ -91,6 +95,25 @@ export default function App() {
       return { ...s, sessions };
     });
     save(updated);
+  }
+
+  function handleLogoUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target.result;
+      setLogo(base64);
+      try { localStorage.setItem('ptcontrol_logo', base64); } catch(e) {}
+      showToast('Logo salva!');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeLogo() {
+    setLogo(null);
+    try { localStorage.removeItem('ptcontrol_logo'); } catch(e) {}
+    showToast('Logo removida.');
   }
 
   function DayCell({ sid, d, year, month }) {
@@ -158,6 +181,105 @@ export default function App() {
     navigator.clipboard.writeText(txt).then(() => showToast('Copiado!')).catch(() => showToast('Erro ao copiar.'));
   }
 
+  async function generatePDF() {
+    if (!repData || !repData.rows.length) return;
+    const { rows, y, m, total, studentName } = repData;
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    // Watermark logo (drawn first so content goes on top)
+    const savedLogo = localStorage.getItem('ptcontrol_logo');
+    if (savedLogo) {
+      await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.globalAlpha = 0.07;
+            ctx.drawImage(img, 0, 0);
+            const wm = canvas.toDataURL('image/png');
+            const aspect = img.width / img.height;
+            const wmW = 160;
+            const wmH = wmW / aspect;
+            doc.addImage(wm, 'PNG', (pageW - wmW) / 2, (pageH - wmH) / 2, wmW, wmH);
+          } catch(e) {}
+          resolve();
+        };
+        img.onerror = resolve;
+        img.src = savedLogo;
+      });
+    }
+
+    // Header bar
+    doc.setFillColor(28, 28, 28);
+    doc.rect(0, 0, pageW, 30, 'F');
+
+    // Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(200, 241, 53);
+    const titulo = studentName ? studentName.toUpperCase() : 'TODOS OS ALUNOS';
+    doc.text(titulo, pageW / 2, 13, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(170, 170, 170);
+    doc.text(`${MONTHS[m].toUpperCase()} ${y}  ·  RELATÓRIO DE AULAS`, pageW / 2, 23, { align: 'center' });
+
+    // Table
+    doc.autoTable({
+      startY: 38,
+      head: [['ALUNO', 'AULAS', 'DIAS']],
+      body: rows.map(r => [r.name, r.count, r.days]),
+      foot: [['TOTAL', total, '']],
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 5 },
+      headStyles: {
+        fillColor: [37, 37, 37],
+        textColor: [102, 102, 102],
+        fontSize: 8,
+        fontStyle: 'bold',
+      },
+      bodyStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [30, 30, 30],
+      },
+      alternateRowStyles: {
+        fillColor: [246, 246, 246],
+      },
+      footStyles: {
+        fillColor: [200, 241, 53],
+        textColor: [17, 17, 17],
+        fontStyle: 'bold',
+        fontSize: 10,
+      },
+      columnStyles: {
+        0: { cellWidth: 75 },
+        1: { cellWidth: 22, halign: 'center' },
+        2: { cellWidth: 'auto' },
+      },
+    });
+
+    // Footer
+    const finalY = doc.lastAutoTable.finalY + 8;
+    doc.setFontSize(7);
+    doc.setTextColor(180, 180, 180);
+    doc.text(
+      `Gerado em ${new Date().toLocaleDateString('pt-BR')}  ·  PT Control`,
+      pageW / 2, finalY, { align: 'center' }
+    );
+
+    const safeName = studentName
+      ? studentName.toLowerCase().replace(/\s+/g, '-')
+      : 'todos';
+    doc.save(`relatorio-${safeName}-${MONTHS_SHORT[m].toLowerCase()}-${y}.pdf`);
+  }
+
   const now = new Date();
   const monthOptions = Array.from({length: 12}, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
@@ -218,12 +340,14 @@ export default function App() {
         )}
       </div>
 
+      {/* Modal Relatório */}
       {report && (
         <div onClick={() => setReport(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.8)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background:'#1c1c1c', border:'1px solid #2d2d2d', borderRadius:14, width:'100%', maxWidth:500, maxHeight:'90vh', overflowY:'auto', padding:22 }}>
             <div style={{ fontFamily:'monospace', fontSize:'1.3rem', letterSpacing:2, color:'#c8f135', marginBottom:4 }}>RELATÓRIO</div>
             <div style={{ color:'#666', fontSize:'.75rem', marginBottom:16 }}>Filtre por mês e aluno</div>
 
+            {/* Filtros */}
             <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:16 }}>
               <div>
                 <div style={styles.filterLabel}>Mês</div>
@@ -241,6 +365,25 @@ export default function App() {
               <button style={{ ...styles.btn, width:'100%', marginTop:4 }} onClick={buildReport}>Gerar relatório</button>
             </div>
 
+            {/* Logo para o PDF */}
+            <div style={{ borderTop:'1px solid #2d2d2d', borderBottom:'1px solid #2d2d2d', padding:'12px 0', marginBottom:16 }}>
+              <div style={styles.filterLabel}>Logo para o PDF (marca d'água)</div>
+              {logo ? (
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:6 }}>
+                  <img src={logo} alt="logo" style={{ height:36, objectFit:'contain', borderRadius:4, background:'#fff', padding:'2px 6px' }} />
+                  <span style={{ fontSize:'.75rem', color:'#aaa', flex:1 }}>Logo salva ✓</span>
+                  <button style={styles.btnSm} onClick={removeLogo}>Remover</button>
+                </div>
+              ) : (
+                <label style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:6, cursor:'pointer', background:'#252525', border:'1px dashed #444', borderRadius:7, padding:'8px 14px' }}>
+                  <span style={{ fontSize:'1rem' }}>🖼️</span>
+                  <span style={{ fontSize:'.78rem', color:'#aaa' }}>Clique para fazer upload da logo</span>
+                  <input type="file" accept="image/*" style={{ display:'none' }} onChange={handleLogoUpload} />
+                </label>
+              )}
+            </div>
+
+            {/* Resultado */}
             {repData && (
               <div>
                 {repData.rows.length === 0 ? (
@@ -281,9 +424,10 @@ export default function App() {
             )}
 
             <div style={{ display:'flex', gap:8, marginTop:16, flexWrap:'wrap' }}>
-              {repData && repData.rows.length > 0 && (
-                <button style={styles.btn} onClick={copyReport}>📋 Copiar texto</button>
-              )}
+              {repData && repData.rows.length > 0 && (<>
+                <button style={styles.btn} onClick={generatePDF}>⬇️ Baixar PDF</button>
+                <button style={styles.btnGhost} onClick={copyReport}>📋 Copiar texto</button>
+              </>)}
               <button style={styles.btnGhost} onClick={() => setReport(false)}>Fechar</button>
             </div>
           </div>
