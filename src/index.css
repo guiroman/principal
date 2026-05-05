@@ -1,3 +1,86 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; }
 #root { min-height: 100vh; }
+
+/* ── Print / PDF ── */
+#ptc-print { display: none; }
+
+@media print {
+  body * { visibility: hidden; }
+  #ptc-print, #ptc-print * { visibility: visible; }
+  #ptc-print {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    color: #111;
+    font-family: sans-serif;
+    z-index: 9999;
+  }
+  .ptc-wm {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60%;
+    max-width: 380px;
+    opacity: 0.07;
+    pointer-events: none;
+  }
+  .ptc-hdr {
+    background: #1c1c1c;
+    padding: 16px 22px 12px;
+  }
+  .ptc-hdr h1 {
+    margin: 0 0 3px;
+    font-size: 15pt;
+    font-family: monospace;
+    letter-spacing: 2px;
+    color: #c8f135;
+  }
+  .ptc-hdr p { margin: 0; font-size: 9pt; color: #aaa; }
+  .ptc-body { padding: 18px 22px; }
+  .ptc-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+    margin-bottom: 14px;
+  }
+  .ptc-tbl th {
+    background: #f0f0f0;
+    color: #555;
+    font-size: 8pt;
+    text-transform: uppercase;
+    padding: 7px 10px;
+    text-align: left;
+    border: 1px solid #ddd;
+  }
+  .ptc-tbl th:nth-child(2) { text-align: center; }
+  .ptc-tbl td {
+    padding: 8px 10px;
+    border: 1px solid #e8e8e8;
+    color: #111;
+    vertical-align: top;
+  }
+  .ptc-tbl td:nth-child(2) { text-align: center; font-weight: 700; }
+  .ptc-tbl tr:nth-child(even) td { background: #f8f8f8; }
+  .ptc-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 9px 12px;
+    background: #c8f135;
+    color: #111;
+    font-weight: 700;
+    font-size: 11pt;
+    border-radius: 4px;
+    margin-bottom: 18px;
+  }
+  .ptc-foot {
+    text-align: center;
+    font-size: 7pt;
+    color: #bbb;
+    border-top: 1px solid #eee;
+    padding-top: 8px;
+  }
+  @page { margin: 12mm 15mm; }
+}

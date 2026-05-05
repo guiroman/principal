@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
 
 const DAYS = ['D','S','T','Q','Q','S','S'];
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -181,103 +179,13 @@ export default function App() {
     navigator.clipboard.writeText(txt).then(() => showToast('Copiado!')).catch(() => showToast('Erro ao copiar.'));
   }
 
-  async function generatePDF() {
+  const [printData, setPrintData] = useState(null);
+
+  function handlePrint() {
     if (!repData || !repData.rows.length) return;
-    const { rows, y, m, total, studentName } = repData;
-
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-
-    // Watermark logo (drawn first so content goes on top)
-    const savedLogo = localStorage.getItem('ptcontrol_logo');
-    if (savedLogo) {
-      await new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.globalAlpha = 0.07;
-            ctx.drawImage(img, 0, 0);
-            const wm = canvas.toDataURL('image/png');
-            const aspect = img.width / img.height;
-            const wmW = 160;
-            const wmH = wmW / aspect;
-            doc.addImage(wm, 'PNG', (pageW - wmW) / 2, (pageH - wmH) / 2, wmW, wmH);
-          } catch(e) {}
-          resolve();
-        };
-        img.onerror = resolve;
-        img.src = savedLogo;
-      });
-    }
-
-    // Header bar
-    doc.setFillColor(28, 28, 28);
-    doc.rect(0, 0, pageW, 30, 'F');
-
-    // Title
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(200, 241, 53);
-    const titulo = studentName ? studentName.toUpperCase() : 'TODOS OS ALUNOS';
-    doc.text(titulo, pageW / 2, 13, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(170, 170, 170);
-    doc.text(`${MONTHS[m].toUpperCase()} ${y}  ·  RELATÓRIO DE AULAS`, pageW / 2, 23, { align: 'center' });
-
-    // Table
-    doc.autoTable({
-      startY: 38,
-      head: [['ALUNO', 'AULAS', 'DIAS']],
-      body: rows.map(r => [r.name, r.count, r.days]),
-      foot: [['TOTAL', total, '']],
-      theme: 'grid',
-      styles: { fontSize: 10, cellPadding: 5 },
-      headStyles: {
-        fillColor: [37, 37, 37],
-        textColor: [102, 102, 102],
-        fontSize: 8,
-        fontStyle: 'bold',
-      },
-      bodyStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [30, 30, 30],
-      },
-      alternateRowStyles: {
-        fillColor: [246, 246, 246],
-      },
-      footStyles: {
-        fillColor: [200, 241, 53],
-        textColor: [17, 17, 17],
-        fontStyle: 'bold',
-        fontSize: 10,
-      },
-      columnStyles: {
-        0: { cellWidth: 75 },
-        1: { cellWidth: 22, halign: 'center' },
-        2: { cellWidth: 'auto' },
-      },
-    });
-
-    // Footer
-    const finalY = doc.lastAutoTable.finalY + 8;
-    doc.setFontSize(7);
-    doc.setTextColor(180, 180, 180);
-    doc.text(
-      `Gerado em ${new Date().toLocaleDateString('pt-BR')}  ·  PT Control`,
-      pageW / 2, finalY, { align: 'center' }
-    );
-
-    const safeName = studentName
-      ? studentName.toLowerCase().replace(/\s+/g, '-')
-      : 'todos';
-    doc.save(`relatorio-${safeName}-${MONTHS_SHORT[m].toLowerCase()}-${y}.pdf`);
+    setPrintData(repData);
+    window.addEventListener('afterprint', () => setPrintData(null), { once: true });
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
   }
 
   const now = new Date();
@@ -425,7 +333,7 @@ export default function App() {
 
             <div style={{ display:'flex', gap:8, marginTop:16, flexWrap:'wrap' }}>
               {repData && repData.rows.length > 0 && (<>
-                <button style={styles.btn} onClick={generatePDF}>⬇️ Baixar PDF</button>
+                <button style={styles.btn} onClick={handlePrint}>🖨️ Salvar PDF</button>
                 <button style={styles.btnGhost} onClick={copyReport}>📋 Copiar texto</button>
               </>)}
               <button style={styles.btnGhost} onClick={() => setReport(false)}>Fechar</button>
@@ -437,6 +345,44 @@ export default function App() {
       {toast && (
         <div style={{ position:'fixed', bottom:20, left:'50%', transform:'translateX(-50%)', background:'#c8f135', color:'#111', fontWeight:700, fontSize:'.82rem', padding:'9px 20px', borderRadius:8, zIndex:999, whiteSpace:'nowrap' }}>
           {toast}
+        </div>
+      )}
+
+      {/* Print view — invisible on screen, visible only when printing */}
+      {printData && (
+        <div id="ptc-print">
+          {logo && <img src={logo} className="ptc-wm" alt="" />}
+          <div className="ptc-hdr">
+            <h1>{printData.studentName ? printData.studentName.toUpperCase() : 'TODOS OS ALUNOS'}</h1>
+            <p>{MONTHS[printData.m].toUpperCase()} {printData.y} · RELATÓRIO DE AULAS · PT CONTROL</p>
+          </div>
+          <div className="ptc-body">
+            <table className="ptc-tbl">
+              <thead>
+                <tr>
+                  <th>Aluno</th>
+                  <th>Aulas</th>
+                  <th>Dias</th>
+                </tr>
+              </thead>
+              <tbody>
+                {printData.rows.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.name}</td>
+                    <td>{r.count}</td>
+                    <td>{r.days}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="ptc-total">
+              <span>TOTAL</span>
+              <span>{printData.total} aula{printData.total !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="ptc-foot">
+              Gerado em {new Date().toLocaleDateString('pt-BR')} · PT Control
+            </div>
+          </div>
         </div>
       )}
     </div>
