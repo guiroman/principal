@@ -6,16 +6,26 @@ body { margin: 0; }
 #ptc-print { display: none; }
 
 @media print {
+  html, body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
   body * { visibility: hidden; }
   #ptc-print, #ptc-print * { visibility: visible; }
   #ptc-print {
     display: block !important;
-    position: fixed;
-    inset: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 100%;
     background: #fff;
     color: #111;
     font-family: sans-serif;
     z-index: 9999;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .ptc-wm {
     position: fixed;
@@ -82,5 +92,5 @@ body { margin: 0; }
     border-top: 1px solid #eee;
     padding-top: 8px;
   }
-  @page { margin: 0; }
+  @page { size: A4 portrait; margin: 0; }
 }
