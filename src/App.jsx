@@ -47,7 +47,8 @@ export default function App() {
   const [nav, setNav] = useState(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [toast, setToast] = useState('');
   const [report, setReport] = useState(false);
-  const [repMonth, setRepMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${n.getMonth()}`; });
+  const [repMonthStart, setRepMonthStart] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${n.getMonth()}`; });
+  const [repMonthEnd, setRepMonthEnd] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${n.getMonth()}`; });
   const [repStudent, setRepStudent] = useState('todos');
   const [repData, setRepData] = useState(null);
   const [logo, setLogo] = useState(() => localStorage.getItem('ptcontrol_logo') || null);
@@ -168,22 +169,41 @@ export default function App() {
   }
 
   function buildReport() {
-    const [y, m] = repMonth.split('-').map(Number);
+    const [ys, ms] = repMonthStart.split('-').map(Number);
+    const [ye, me] = repMonthEnd.split('-').map(Number);
+    const months = [];
+    let cy = ys, cm = ms;
+    while (cy < ye || (cy === ye && cm <= me)) {
+      months.push({ y: cy, m: cm });
+      cm++; if (cm > 11) { cm = 0; cy++; }
+      if (months.length > 24) break;
+    }
     const filtered = repStudent === 'todos' ? students : students.filter(s => String(s.id) === repStudent);
     const rows = filtered.map(s => {
-      const keys = Object.keys(s.sessions||{}).filter(k => k.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).sort();
-      return { name: s.name, count: keys.length, days: keys.map(k => parseInt(k.split('-')[2])).join(', ') };
+      const byMonth = months.map(({ y, m }) => {
+        const prefix = `${y}-${String(m+1).padStart(2,'0')}`;
+        const days = Object.keys(s.sessions||{}).filter(k => k.startsWith(prefix)).sort().map(k => parseInt(k.split('-')[2]));
+        return { label: `${MONTHS_SHORT[m]}/${y}`, days };
+      }).filter(r => r.days.length > 0);
+      const total = byMonth.reduce((a, r) => a + r.days.length, 0);
+      const daysStr = months.length === 1
+        ? (byMonth[0]?.days.join(', ') || '')
+        : byMonth.map(r => `${r.label}: ${r.days.join(', ')}`).join(' | ');
+      return { name: s.name, count: total, days: daysStr };
     }).filter(r => r.count > 0);
     const studentName = repStudent !== 'todos' ? students.find(s => String(s.id) === repStudent)?.name : null;
-    setRepData({ rows, y, m, total: rows.reduce((a,r) => a+r.count, 0), studentName });
+    const monthLabel = months.length === 1
+      ? `${MONTHS[ms]} ${ys}`
+      : `${MONTHS[ms]} ${ys} – ${MONTHS[me]} ${ye}`;
+    setRepData({ rows, monthLabel, total: rows.reduce((a,r) => a+r.count, 0), studentName });
   }
 
   function copyReport() {
     if (!repData || !repData.rows.length) return;
-    const { rows, y, m, total, studentName } = repData;
+    const { rows, monthLabel, total, studentName } = repData;
     const titulo = studentName
-      ? `RELATÓRIO — ${studentName.toUpperCase()} — ${MONTHS[m].toUpperCase()} ${y}`
-      : `RELATÓRIO — ${MONTHS[m].toUpperCase()} ${y}`;
+      ? `RELATÓRIO — ${studentName.toUpperCase()} — ${monthLabel.toUpperCase()}`
+      : `RELATÓRIO — ${monthLabel.toUpperCase()}`;
     let txt = `${titulo}\n${'─'.repeat(titulo.length)}\n`;
     rows.forEach(r => txt += `${r.name}: ${r.count} aula${r.count!==1?'s':''} (dias: ${r.days})\n`);
     txt += `${'─'.repeat(titulo.length)}\nTOTAL: ${total} aula${total!==1?'s':''}`;
@@ -286,11 +306,19 @@ export default function App() {
 
             {/* Filtros */}
             <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:16 }}>
-              <div>
-                <div style={styles.filterLabel}>Mês</div>
-                <select value={repMonth} onChange={e => { setRepMonth(e.target.value); setRepData(null); }} style={styles.sel}>
-                  {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+              <div style={{ display:'flex', gap:10 }}>
+                <div style={{ flex:1 }}>
+                  <div style={styles.filterLabel}>De</div>
+                  <select value={repMonthStart} onChange={e => { setRepMonthStart(e.target.value); setRepData(null); }} style={styles.sel}>
+                    {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={styles.filterLabel}>Até</div>
+                  <select value={repMonthEnd} onChange={e => { setRepMonthEnd(e.target.value); setRepData(null); }} style={styles.sel}>
+                    {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
               </div>
               <div>
                 <div style={styles.filterLabel}>Aluno</div>
@@ -332,7 +360,7 @@ export default function App() {
                     <div style={{ marginBottom:12, paddingBottom:12, borderBottom:'1px solid #2d2d2d', borderTop:'1px solid #2d2d2d', paddingTop:12 }}>
                       <div style={styles.filterLabel}>Resultado</div>
                       <div style={{ fontWeight:600, marginTop:2 }}>
-                        {MONTHS[repData.m]} {repData.y}{repData.studentName ? ` · ${repData.studentName}` : ' · Todos os alunos'}
+                        {repData.monthLabel}{repData.studentName ? ` · ${repData.studentName}` : ' · Todos os alunos'}
                       </div>
                     </div>
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'.82rem' }}>
@@ -383,7 +411,7 @@ export default function App() {
           {logo && <img src={logo} className="ptc-wm" alt="" />}
           <div className="ptc-hdr">
             <h1>{printData.studentName ? printData.studentName.toUpperCase() : 'GUILHERME ROMAN - TREINADOR'}</h1>
-            <p>{MONTHS[printData.m].toUpperCase()} {printData.y} · RELATÓRIO DE AULAS · PT CONTROL</p>
+            <p>{printData.monthLabel.toUpperCase()} · RELATÓRIO DE AULAS · PT CONTROL</p>
           </div>
           <div className="ptc-body">
             <table className="ptc-tbl">
