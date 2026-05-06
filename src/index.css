@@ -47,6 +47,7 @@ body { margin: 0; }
     font-family: monospace;
     letter-spacing: 2px;
     color: #c8f135;
+    text-align: center;
   }
   .ptc-hdr p { margin: 0; font-size: 9pt; color: #aaa; }
   .ptc-body { padding: 18px 22px; }

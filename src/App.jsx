@@ -448,7 +448,7 @@ export default function App() {
           {logo && <img src={logo} className="ptc-wm" alt="" />}
           <div className="ptc-hdr">
             <h1>RELATÓRIO DE AULAS</h1>
-            <p>{printData.monthLabel.toUpperCase()}{printData.studentName ? ` · ${printData.studentName.toUpperCase()}` : ''}</p>
+            <p>{printData.monthLabel.toUpperCase()}</p>
           </div>
           <div className="ptc-body">
             <table className="ptc-tbl">
@@ -465,7 +465,7 @@ export default function App() {
                   <tr key={i}>
                     <td>{r.name}</td>
                     <td>{r.count}</td>
-                    {printData.hasPrecos && <td style={{ textAlign:'right' }}>{r.valor > 0 ? `R$ ${fmt(r.valor)}` : '—'}</td>}
+                    {printData.hasPrecos && <td style={{ textAlign:'right' }}>{r.preco > 0 ? `R$ ${fmt(r.preco)}/aula` : '—'}</td>}
                     <td>{r.days}</td>
                   </tr>
                 ))}
