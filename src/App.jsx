@@ -4,6 +4,8 @@ const DAYS = ['D','S','T','Q','Q','S','S'];
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MONTHS_SHORT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
+const fmt = v => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const styles = {
   app: { background: '#111', minHeight: '100vh', fontFamily: 'sans-serif', color: '#f0f0f0', paddingBottom: 60 },
   header: { background: '#1c1c1c', borderBottom: '2px solid #c8f135', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 },
@@ -12,6 +14,7 @@ const styles = {
   addBox: { background: '#1c1c1c', border: '1px solid #2d2d2d', borderRadius: 10, padding: 14, marginBottom: 18 },
   addRow: { display: 'flex', gap: 8 },
   input: { flex: 1, background: '#0f0f0f', border: '1.5px solid #2d2d2d', borderRadius: 7, padding: '12px 13px', color: '#f0f0f0', fontSize: 16, outline: 'none', minHeight: 44 },
+  inputPrice: { width: 100, flexShrink: 0, background: '#0f0f0f', border: '1.5px solid #2d2d2d', borderRadius: 7, padding: '12px 10px', color: '#f0f0f0', fontSize: 16, outline: 'none', minHeight: 44 },
   btn: { background: '#c8f135', color: '#111', border: 'none', borderRadius: 7, padding: '10px 16px', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer', minHeight: 44, whiteSpace: 'nowrap' },
   btnSm: { background: 'transparent', border: '1px solid #ff4d4d', color: '#ff4d4d', borderRadius: 6, padding: '6px 12px', fontSize: '.75rem', cursor: 'pointer' },
   btnGhost: { background: 'transparent', border: '1px solid #2d2d2d', color: '#666', borderRadius: 7, padding: '8px 14px', fontSize: '.8rem', cursor: 'pointer' },
@@ -37,13 +40,16 @@ function totalSessions(s) { return Object.keys(s.sessions || {}).length; }
 function monthCount(s, y, m) {
   return Object.keys(s.sessions || {}).filter(k => k.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
 }
+function parsePreco(v) { return parseFloat(String(v).replace(',', '.')) || 0; }
 
 export default function App() {
   const [students, setStudents] = useState([]);
   const [newName, setNewName] = useState('');
+  const [newPreco, setNewPreco] = useState('');
   const [openCard, setOpenCard] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState('');
+  const [editingPreco, setEditingPreco] = useState('');
   const [nav, setNav] = useState(() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth() }; });
   const [toast, setToast] = useState('');
   const [report, setReport] = useState(false);
@@ -73,19 +79,22 @@ export default function App() {
   function addStudent() {
     const name = newName.trim();
     if (!name) return;
-    const updated = [...students, { id: Date.now(), name, sessions: {} }];
+    const preco = parsePreco(newPreco);
+    const updated = [...students, { id: Date.now(), name, preco, sessions: {} }];
     save(updated);
     setNewName('');
+    setNewPreco('');
     showToast('Aluno adicionado!');
   }
 
   function renameStudent(id) {
     const name = editingName.trim();
     if (!name) return;
-    const updated = students.map(s => s.id === id ? { ...s, name } : s);
+    const preco = parsePreco(editingPreco);
+    const updated = students.map(s => s.id === id ? { ...s, name, preco } : s);
     save(updated);
     setEditingId(null);
-    showToast('Nome atualizado!');
+    showToast('Aluno atualizado!');
   }
 
   function removeStudent(id) {
@@ -185,28 +194,37 @@ export default function App() {
         const days = Object.keys(s.sessions||{}).filter(k => k.startsWith(prefix)).sort().map(k => parseInt(k.split('-')[2]));
         return { label: `${MONTHS_SHORT[m]}/${y}`, days };
       }).filter(r => r.days.length > 0);
-      const total = byMonth.reduce((a, r) => a + r.days.length, 0);
+      const count = byMonth.reduce((a, r) => a + r.days.length, 0);
       const daysStr = months.length === 1
         ? (byMonth[0]?.days.join(', ') || '')
         : byMonth.map(r => `${r.label}: ${r.days.join(', ')}`).join(' | ');
-      return { name: s.name, count: total, days: daysStr };
+      const preco = s.preco || 0;
+      return { name: s.name, count, days: daysStr, preco, valor: preco * count };
     }).filter(r => r.count > 0);
     const studentName = repStudent !== 'todos' ? students.find(s => String(s.id) === repStudent)?.name : null;
     const monthLabel = months.length === 1
       ? `${MONTHS[ms]} ${ys}`
       : `${MONTHS[ms]} ${ys} – ${MONTHS[me]} ${ye}`;
-    setRepData({ rows, monthLabel, total: rows.reduce((a,r) => a+r.count, 0), studentName });
+    const total = rows.reduce((a,r) => a+r.count, 0);
+    const totalValor = rows.reduce((a,r) => a+r.valor, 0);
+    const hasPrecos = rows.some(r => r.valor > 0);
+    setRepData({ rows, monthLabel, total, totalValor, hasPrecos, studentName });
   }
 
   function copyReport() {
     if (!repData || !repData.rows.length) return;
-    const { rows, monthLabel, total, studentName } = repData;
+    const { rows, monthLabel, total, totalValor, hasPrecos, studentName } = repData;
     const titulo = studentName
-      ? `RELATÓRIO — ${studentName.toUpperCase()} — ${monthLabel.toUpperCase()}`
-      : `RELATÓRIO — ${monthLabel.toUpperCase()}`;
+      ? `RELATÓRIO DE AULAS — ${studentName.toUpperCase()} — ${monthLabel.toUpperCase()}`
+      : `RELATÓRIO DE AULAS — ${monthLabel.toUpperCase()}`;
     let txt = `${titulo}\n${'─'.repeat(titulo.length)}\n`;
-    rows.forEach(r => txt += `${r.name}: ${r.count} aula${r.count!==1?'s':''} (dias: ${r.days})\n`);
+    rows.forEach(r => {
+      txt += `${r.name}: ${r.count} aula${r.count!==1?'s':''}`;
+      if (r.valor > 0) txt += ` · R$ ${fmt(r.valor)}`;
+      txt += ` (dias: ${r.days})\n`;
+    });
     txt += `${'─'.repeat(titulo.length)}\nTOTAL: ${total} aula${total!==1?'s':''}`;
+    if (hasPrecos) txt += ` · R$ ${fmt(totalValor)}`;
     navigator.clipboard.writeText(txt).then(() => showToast('Copiado!')).catch(() => showToast('Erro ao copiar.'));
   }
 
@@ -238,10 +256,14 @@ export default function App() {
       <div style={styles.body}>
         <div style={styles.addBox}>
           <label style={styles.label}>Novo Aluno</label>
-          <div style={styles.addRow}>
-            <input style={styles.input} type="text" placeholder="Nome do aluno..." value={newName}
-              onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key==='Enter' && addStudent()} maxLength={50} />
-            <button style={styles.btn} onClick={addStudent}>+ Adicionar</button>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={styles.addRow}>
+              <input style={styles.input} type="text" placeholder="Nome do aluno..." value={newName}
+                onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key==='Enter' && addStudent()} maxLength={50} />
+              <input style={styles.inputPrice} type="number" placeholder="R$ / aula" value={newPreco} min="0" step="0.01"
+                onChange={e => setNewPreco(e.target.value)} onKeyDown={e => e.key==='Enter' && addStudent()} />
+            </div>
+            <button style={{ ...styles.btn, width:'100%' }} onClick={addStudent}>+ Adicionar</button>
           </div>
         </div>
 
@@ -262,13 +284,20 @@ export default function App() {
                     <div style={{ display:'flex', alignItems:'center', gap:12, flex:1, minWidth:0 }}>
                       <div style={styles.avatar}>{s.name.charAt(0).toUpperCase()}</div>
                       {editingId === s.id ? (
-                        <div onClick={e => e.stopPropagation()} style={{ display:'flex', gap:6, alignItems:'center', flex:1 }}>
+                        <div onClick={e => e.stopPropagation()} style={{ display:'flex', gap:6, alignItems:'center', flex:1, flexWrap:'wrap' }}>
                           <input
-                            style={{ ...styles.input, padding:'6px 10px', fontSize:'.9rem', minHeight:'unset', flex:1 }}
+                            style={{ ...styles.input, padding:'6px 10px', fontSize:'.9rem', minHeight:'unset', minWidth:100, flex:2 }}
                             value={editingName}
                             onChange={e => setEditingName(e.target.value)}
                             onKeyDown={e => { if(e.key==='Enter') renameStudent(s.id); if(e.key==='Escape') setEditingId(null); }}
                             autoFocus
+                          />
+                          <input
+                            style={{ ...styles.inputPrice, padding:'6px 8px', fontSize:'.9rem', minHeight:'unset', flex:1 }}
+                            type="number" min="0" step="0.01" placeholder="R$ / aula"
+                            value={editingPreco}
+                            onChange={e => setEditingPreco(e.target.value)}
+                            onKeyDown={e => { if(e.key==='Enter') renameStudent(s.id); if(e.key==='Escape') setEditingId(null); }}
                           />
                           <button style={{ ...styles.btn, padding:'6px 12px', minHeight:'unset' }} onClick={e => { e.stopPropagation(); renameStudent(s.id); }}>✓</button>
                           <button style={{ ...styles.btnGhost, padding:'6px 10px', minHeight:'unset' }} onClick={e => { e.stopPropagation(); setEditingId(null); }}>✕</button>
@@ -276,14 +305,17 @@ export default function App() {
                       ) : (
                         <div style={{ minWidth:0 }}>
                           <div style={{ fontWeight:600, fontSize:'.95rem' }}>{s.name}</div>
-                          <div style={{ fontSize:'.72rem', color:'#666', marginTop:1 }}>{tot} aula{tot!==1?'s':''} no total</div>
+                          <div style={{ fontSize:'.72rem', color:'#666', marginTop:1 }}>
+                            {tot} aula{tot!==1?'s':''} no total
+                            {(s.preco > 0) && ` · R$ ${fmt(s.preco)}/aula`}
+                          </div>
                         </div>
                       )}
                     </div>
                     {editingId !== s.id && (
                       <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
                         <button style={{ background:'transparent', border:'1px solid #333', color:'#666', borderRadius:6, padding:'4px 8px', fontSize:'.8rem', cursor:'pointer' }}
-                          onClick={e => { e.stopPropagation(); setEditingId(s.id); setEditingName(s.name); }}>✏️</button>
+                          onClick={e => { e.stopPropagation(); setEditingId(s.id); setEditingName(s.name); setEditingPreco(s.preco > 0 ? String(s.preco) : ''); }}>✏️</button>
                         <span style={styles.badge}>{tot}</span>
                         <span style={{ color:'#666', display:'inline-block', transform: isOpen?'rotate(180deg)':'none', transition:'transform .25s' }}>▾</span>
                       </div>
@@ -367,6 +399,7 @@ export default function App() {
                       <thead><tr>
                         <th style={{ textAlign:'left', padding:'8px 10px', background:'#252525', color:'#666', fontSize:'.68rem', textTransform:'uppercase' }}>Aluno</th>
                         <th style={{ textAlign:'center', padding:'8px 10px', background:'#252525', color:'#666', fontSize:'.68rem', textTransform:'uppercase' }}>Aulas</th>
+                        {repData.hasPrecos && <th style={{ textAlign:'right', padding:'8px 10px', background:'#252525', color:'#666', fontSize:'.68rem', textTransform:'uppercase' }}>Valor</th>}
                         <th style={{ textAlign:'left', padding:'8px 10px', background:'#252525', color:'#666', fontSize:'.68rem', textTransform:'uppercase' }}>Dias</th>
                       </tr></thead>
                       <tbody>
@@ -374,14 +407,18 @@ export default function App() {
                           <tr key={i}>
                             <td style={{ padding:'8px 10px', borderBottom:'1px solid #2d2d2d', fontWeight:500 }}>{r.name}</td>
                             <td style={{ padding:'8px 10px', borderBottom:'1px solid #2d2d2d', textAlign:'center' }}><span style={styles.badge}>{r.count}</span></td>
+                            {repData.hasPrecos && <td style={{ padding:'8px 10px', borderBottom:'1px solid #2d2d2d', textAlign:'right', color: r.valor > 0 ? '#c8f135' : '#666' }}>{r.valor > 0 ? `R$ ${fmt(r.valor)}` : '—'}</td>}
                             <td style={{ padding:'8px 10px', borderBottom:'1px solid #2d2d2d', color:'#666', fontSize:'.75rem' }}>{r.days}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #2d2d2d', display:'flex', justifyContent:'space-between', fontSize:'.82rem' }}>
+                    <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #2d2d2d', display:'flex', justifyContent:'space-between', fontSize:'.82rem', flexWrap:'wrap', gap:4 }}>
                       <span style={{ color:'#666' }}>Total</span>
-                      <span style={{ fontWeight:700, color:'#c8f135' }}>{repData.total} aula{repData.total!==1?'s':''}</span>
+                      <div style={{ display:'flex', gap:16 }}>
+                        <span style={{ fontWeight:700, color:'#c8f135' }}>{repData.total} aula{repData.total!==1?'s':''}</span>
+                        {repData.hasPrecos && <span style={{ fontWeight:700, color:'#c8f135' }}>R$ {fmt(repData.totalValor)}</span>}
+                      </div>
                     </div>
                   </>
                 )}
@@ -405,13 +442,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Print view — invisible on screen, visible only when printing */}
+      {/* Print view */}
       {printData && (
         <div id="ptc-print">
           {logo && <img src={logo} className="ptc-wm" alt="" />}
           <div className="ptc-hdr">
-            <h1>{printData.studentName ? printData.studentName.toUpperCase() : 'GUILHERME ROMAN - TREINADOR'}</h1>
-            <p>{printData.monthLabel.toUpperCase()} · RELATÓRIO DE AULAS · PT CONTROL</p>
+            <h1>RELATÓRIO DE AULAS</h1>
+            <p>{printData.monthLabel.toUpperCase()}{printData.studentName ? ` · ${printData.studentName.toUpperCase()}` : ''}</p>
           </div>
           <div className="ptc-body">
             <table className="ptc-tbl">
@@ -419,6 +456,7 @@ export default function App() {
                 <tr>
                   <th>Aluno</th>
                   <th>Aulas</th>
+                  {printData.hasPrecos && <th style={{ textAlign:'right' }}>Valor</th>}
                   <th>Dias</th>
                 </tr>
               </thead>
@@ -427,6 +465,7 @@ export default function App() {
                   <tr key={i}>
                     <td>{r.name}</td>
                     <td>{r.count}</td>
+                    {printData.hasPrecos && <td style={{ textAlign:'right' }}>{r.valor > 0 ? `R$ ${fmt(r.valor)}` : '—'}</td>}
                     <td>{r.days}</td>
                   </tr>
                 ))}
@@ -434,7 +473,10 @@ export default function App() {
             </table>
             <div className="ptc-total">
               <span>TOTAL</span>
-              <span>{printData.total} aula{printData.total !== 1 ? 's' : ''}</span>
+              <div style={{ display:'flex', gap:24 }}>
+                <span>{printData.total} aula{printData.total !== 1 ? 's' : ''}</span>
+                {printData.hasPrecos && <span>R$ {fmt(printData.totalValor)}</span>}
+              </div>
             </div>
             <div className="ptc-foot">
               Gerado em {new Date().toLocaleDateString('pt-BR')} · PT Control
