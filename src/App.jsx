@@ -40,7 +40,11 @@ function totalSessions(s) { return Object.keys(s.sessions || {}).length; }
 function monthCount(s, y, m) {
   return Object.keys(s.sessions || {}).filter(k => k.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)).length;
 }
-function parsePreco(v) { return parseFloat(String(v).replace(',', '.')) || 0; }
+function parsePreco(v) {
+  const s = String(v).trim().replace(/[^\d.,]/g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : Math.round(n * 100) / 100;
+}
 
 export default function App() {
   const [students, setStudents] = useState([]);
@@ -260,7 +264,7 @@ export default function App() {
             <div style={styles.addRow}>
               <input style={styles.input} type="text" placeholder="Nome do aluno..." value={newName}
                 onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key==='Enter' && addStudent()} maxLength={50} />
-              <input style={styles.inputPrice} type="number" placeholder="R$ / aula" value={newPreco} min="0" step="0.01"
+              <input style={styles.inputPrice} type="text" inputMode="decimal" placeholder="R$ / aula" value={newPreco}
                 onChange={e => setNewPreco(e.target.value)} onKeyDown={e => e.key==='Enter' && addStudent()} />
             </div>
             <button style={{ ...styles.btn, width:'100%' }} onClick={addStudent}>+ Adicionar</button>
@@ -294,7 +298,7 @@ export default function App() {
                           />
                           <input
                             style={{ ...styles.inputPrice, padding:'6px 8px', fontSize:'.9rem', minHeight:'unset', flex:1 }}
-                            type="number" min="0" step="0.01" placeholder="R$ / aula"
+                            type="text" inputMode="decimal" placeholder="R$ / aula"
                             value={editingPreco}
                             onChange={e => setEditingPreco(e.target.value)}
                             onKeyDown={e => { if(e.key==='Enter') renameStudent(s.id); if(e.key==='Escape') setEditingId(null); }}
